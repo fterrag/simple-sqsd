@@ -29,7 +29,7 @@ func main() {
 	c.QueueRegion = os.Getenv("SQSD_QUEUE_REGION")
 	c.QueueURL = os.Getenv("SQSD_QUEUE_URL")
 	c.QueueMaxMessages = getEnvInt("SQSD_QUEUE_MAX_MSGS", 10)
-	c.QueueWaitTime = getEnvInt("SQSD_HTTP_WAIT_TIME", 10)
+	c.QueueWaitTime = getEnvInt("SQSD_QUEUE_WAIT_TIME", 10)
 
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")

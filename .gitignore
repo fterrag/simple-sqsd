@@ -14,3 +14,6 @@
 .glide/
 
 vendor/
+
+# GoLand IDE config file
+.idea

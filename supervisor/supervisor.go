@@ -143,8 +143,8 @@ func (s *Supervisor) httpRequest(body string) error {
 
 	res.Body.Close()
 
-	if res.StatusCode != 200 {
-		return fmt.Errorf("Non-200 status code received")
+	if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
+		return fmt.Errorf("Non-Success status code received")
 	}
 
 	return nil

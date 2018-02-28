@@ -29,7 +29,8 @@ $ docker run -e SQSD_QUEUE_REGION=us-east-1 -e SQSD_QUEUE_URL=http://queue.url -
 
 ## Todo
 
-- [ ] Tests
+- [ ] Travis CI integration
+- [ ] More Tests
 - [ ] Documentation
 
 ## Contributing

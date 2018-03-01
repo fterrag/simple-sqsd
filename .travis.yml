@@ -1,0 +1,12 @@
+sudo: required
+
+addons:
+  apt:
+    packages:
+      - docker-ce
+
+services:
+  - docker
+
+script:
+  - ./travis.sh

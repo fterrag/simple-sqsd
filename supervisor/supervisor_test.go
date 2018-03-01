@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,6 +37,7 @@ func (m *mockSQS) DeleteMessageBatch(input *sqs.DeleteMessageBatchInput) (*sqs.D
 
 	return nil, nil
 }
+
 func TestSupervisorSuccess(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
@@ -44,6 +46,7 @@ func TestSupervisorSuccess(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	log.SetOutput(ioutil.Discard)
 	logger := log.WithFields(log.Fields{})
 	mockSQS := &mockSQS{}
 	config := WorkerConfig{
@@ -89,6 +92,7 @@ func TestSupervisorHTTPError(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	log.SetOutput(ioutil.Discard)
 	logger := log.WithFields(log.Fields{})
 	mockSQS := &mockSQS{}
 	config := WorkerConfig{

@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/fterrag/simple-sqsd)](https://goreportcard.com/report/github.com/fterrag/simple-sqsd)
+[![Build Status](https://travis-ci.org/fterrag/simple-sqsd.svg?branch=master)](https://travis-ci.org/fterrag/simple-sqsd) [![Go Report Card](https://goreportcard.com/badge/github.com/fterrag/simple-sqsd)](https://goreportcard.com/report/github.com/fterrag/simple-sqsd)
 
 # simple-sqsd
 
@@ -28,8 +28,6 @@ $ docker run -e SQSD_QUEUE_REGION=us-east-1 -e SQSD_QUEUE_URL=http://queue.url -
 | `SQSD_HTTP_CONTENT_TYPE`                |                    | no                                 | The value to send for the HTTP header `Content-Type` when making a request to your service.            |
 
 ## Todo
-
-- [ ] Travis CI integration
 - [ ] More Tests
 - [ ] Documentation
 

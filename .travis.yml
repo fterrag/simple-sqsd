@@ -3,7 +3,8 @@ sudo: required
 addons:
   apt:
     packages:
-      - docker-ce
+      # Install a newer version of Docker to support the --target flag when using docker build.
+      - docker-ce=18.03.0~ce-0~ubuntu
 
 services:
   - docker

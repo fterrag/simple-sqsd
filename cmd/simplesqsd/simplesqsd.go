@@ -71,15 +71,15 @@ func main() {
 		WithRegion(c.QueueRegion).
 		WithHTTPClient(httpClient)
 
+	sqsSvc := sqs.New(awsSess, sqsConfig)
+
 	// To workaround a kube2iam issue, expire credentials every minute.
 	go func() {
 		for {
-			sqsConfig.Credentials.Expire()
+			sqsSvc.Config.Credentials.Expire()
 			time.Sleep(time.Minute)
 		}
 	}()
-
-	sqsSvc := sqs.New(awsSess, sqsConfig)
 
 	wConf := supervisor.WorkerConfig{
 		QueueURL:         c.QueueURL,

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -69,6 +70,14 @@ func main() {
 	sqsConfig := aws.NewConfig().
 		WithRegion(c.QueueRegion).
 		WithHTTPClient(httpClient)
+
+	// To workaround a kube2iam issue, expire credentials every minute.
+	go func() {
+		for {
+			sqsConfig.Credentials.Expire()
+			time.Sleep(time.Minute)
+		}
+	}()
 
 	sqsSvc := sqs.New(awsSess, sqsConfig)
 

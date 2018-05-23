@@ -26,6 +26,8 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 | `SQSD_HTTP_MAX_CONNS`                   | `50`               | no                                 | Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.                                   |
 | `SQSD_HTTP_URL`                         |                    | yes                                | The URL of your service to make a request to.                                                          |
 | `SQSD_HTTP_CONTENT_TYPE`                |                    | no                                 | The value to send for the HTTP header `Content-Type` when making a request to your service.            |
+| `AWS_ENDPOINT`                          |                    | no                                 | Custom AWS Endpoint to use for testing locally with elasticMQ                                          |
+| `APP_API_SECRET_KEY`                    |                    | no                                 | Secret key used for generating HMAC SHA256 Hash to send to `SQSD_HTTP_URL`                             |
 
 ## Todo
 - [ ] More Tests

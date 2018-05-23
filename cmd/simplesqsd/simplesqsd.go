@@ -14,6 +14,10 @@ import (
 )
 
 type config struct {
+	AWSEndpoint string
+
+	AppApiSecretKey []byte
+
 	QueueRegion      string
 	QueueURL         string
 	QueueMaxMessages int
@@ -26,6 +30,10 @@ type config struct {
 
 func main() {
 	c := &config{}
+
+	c.AWSEndpoint = os.Getenv("AWS_ENDPOINT")
+
+	c.AppApiSecretKey = []byte(os.Getenv("APP_API_SECRET_KEY"))
 
 	c.QueueRegion = os.Getenv("SQSD_QUEUE_REGION")
 	c.QueueURL = os.Getenv("SQSD_QUEUE_URL")
@@ -71,6 +79,10 @@ func main() {
 		WithRegion(c.QueueRegion).
 		WithHTTPClient(httpClient)
 
+	if c.AWSEndpoint != "" {
+		sqsConfig.WithEndpoint(c.AWSEndpoint)
+	}
+
 	sqsSvc := sqs.New(awsSess, sqsConfig)
 
 	// To workaround a kube2iam issue, expire credentials every minute.
@@ -85,6 +97,8 @@ func main() {
 		QueueURL:         c.QueueURL,
 		QueueMaxMessages: c.QueueMaxMessages,
 		QueueWaitTime:    c.QueueWaitTime,
+
+		SecretKey: c.AppApiSecretKey,
 
 		HTTPURL:         c.HTTPURL,
 		HTTPContentType: c.HTTPContentType,

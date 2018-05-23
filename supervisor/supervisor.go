@@ -2,8 +2,12 @@ package supervisor
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -11,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	log "github.com/sirupsen/logrus"
 )
+
+var signature string
 
 type Supervisor struct {
 	sync.Mutex
@@ -31,6 +37,8 @@ type WorkerConfig struct {
 	QueueMaxMessages int
 	QueueWaitTime    int
 
+	SecretKey []byte
+
 	HTTPURL         string
 	HTTPContentType string
 }
@@ -49,6 +57,7 @@ func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient
 }
 
 func (s *Supervisor) Start(numWorkers int) {
+	signature = "POST " + strings.TrimRight(s.workerConfig.HTTPURL, "/") + "\n"
 	s.startOnce.Do(func() {
 		s.wg.Add(numWorkers)
 
@@ -132,6 +141,11 @@ func (s *Supervisor) httpRequest(body string) error {
 		return fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
 
+	if len(s.workerConfig.SecretKey) > 0 {
+		mac := getMac(signature+body, s.workerConfig.SecretKey)
+		req.Header.Set("MAC", mac)
+	}
+
 	if len(s.workerConfig.HTTPContentType) > 0 {
 		req.Header.Set("Content-Type", s.workerConfig.HTTPContentType)
 	}
@@ -148,4 +162,10 @@ func (s *Supervisor) httpRequest(body string) error {
 	}
 
 	return nil
+}
+
+func getMac(signature string, secretKey []byte) string {
+	mac := hmac.New(sha256.New, secretKey)
+	mac.Write([]byte(signature))
+	return hex.EncodeToString(mac.Sum(nil))
 }

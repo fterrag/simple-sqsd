@@ -53,7 +53,7 @@ func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient
 		sqs:           sqs,
 		httpClient:    httpClient,
 		workerConfig:  config,
-		hmacSignature: fmt.Sprintf("POST %s", config.HTTPURL),
+		hmacSignature: fmt.Sprintf("POST %s\n", config.HTTPURL),
 	}
 }
 

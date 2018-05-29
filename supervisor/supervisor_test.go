@@ -155,7 +155,7 @@ func TestSupervisorHMAC(t *testing.T) {
 		body, _ := ioutil.ReadAll(r.Body)
 		r.Body.Close()
 
-		mac.Write([]byte(fmt.Sprintf("%s %s%s", r.Method, fmt.Sprintf("http://%s", r.Host), string(body))))
+		mac.Write([]byte(fmt.Sprintf("%s %s\n%s", r.Method, fmt.Sprintf("http://%s", r.Host), string(body))))
 		expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
 		hmacSuccess = hmac.Equal([]byte(r.Header.Get(hmacHeader)), []byte(expectedMAC))

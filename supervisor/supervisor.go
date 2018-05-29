@@ -16,15 +16,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var signature string
-
 type Supervisor struct {
 	sync.Mutex
 
-	logger       *log.Entry
-	sqs          sqsiface.SQSAPI
-	httpClient   httpClient
-	workerConfig WorkerConfig
+	logger        *log.Entry
+	sqs           sqsiface.SQSAPI
+	httpClient    httpClient
+	workerConfig  WorkerConfig
+	hmacSignature string
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -37,10 +36,11 @@ type WorkerConfig struct {
 	QueueMaxMessages int
 	QueueWaitTime    int
 
-	SecretKey []byte
-
 	HTTPURL         string
 	HTTPContentType string
+
+	HTTPHMACHeader string
+	HMACSecretKey  []byte
 }
 
 type httpClient interface {
@@ -49,15 +49,15 @@ type httpClient interface {
 
 func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient, config WorkerConfig) *Supervisor {
 	return &Supervisor{
-		logger:       logger,
-		sqs:          sqs,
-		httpClient:   httpClient,
-		workerConfig: config,
+		logger:        logger,
+		sqs:           sqs,
+		httpClient:    httpClient,
+		workerConfig:  config,
+		hmacSignature: fmt.Sprintf("POST %s", config.HTTPURL),
 	}
 }
 
 func (s *Supervisor) Start(numWorkers int) {
-	signature = "POST " + strings.TrimRight(s.workerConfig.HTTPURL, "/") + "\n"
 	s.startOnce.Do(func() {
 		s.wg.Add(numWorkers)
 
@@ -141,9 +141,13 @@ func (s *Supervisor) httpRequest(body string) error {
 		return fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
 
-	if len(s.workerConfig.SecretKey) > 0 {
-		mac := getMac(signature+body, s.workerConfig.SecretKey)
-		req.Header.Set("MAC", mac)
+	if len(s.workerConfig.HMACSecretKey) > 0 {
+		hmac, err := makeHMAC(strings.Join([]string{s.hmacSignature, body}, ""), s.workerConfig.HMACSecretKey)
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set(s.workerConfig.HTTPHMACHeader, hmac)
 	}
 
 	if len(s.workerConfig.HTTPContentType) > 0 {
@@ -164,8 +168,13 @@ func (s *Supervisor) httpRequest(body string) error {
 	return nil
 }
 
-func getMac(signature string, secretKey []byte) string {
+func makeHMAC(signature string, secretKey []byte) (string, error) {
 	mac := hmac.New(sha256.New, secretKey)
-	mac.Write([]byte(signature))
-	return hex.EncodeToString(mac.Sum(nil))
+
+	_, err := mac.Write([]byte(signature))
+	if err != nil {
+		return "", fmt.Errorf("Error while writing HMAC: %s", err)
+	}
+
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }

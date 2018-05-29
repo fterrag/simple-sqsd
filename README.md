@@ -17,17 +17,20 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 
 ## Configuration
 
-| **Environment Variable**                | **Default Value**  | **Required**                       | **Description**                                                                                        |
-|-----------------------------------------|--------------------|------------------------------------|--------------------------------------------------------------------------------------------------------|
-| `SQSD_QUEUE_REGION`                     |                    | yes                                | The region of the SQS queue.                                                                           |
-| `SQSD_QUEUE_URL`                        |                    | yes                                | The URL of the SQS queue.                                                                              |
-| `SQSD_QUEUE_MAX_MSGS`                   | `10`               | no                                 | Max number of messages a worker should try to receive from the SQS queue.                              |
-| `SQSD_QUEUE_WAIT_TIME`                  | `10`               | no                                 | Number of seconds for SQS to wait until a message is available in the queue before sending a response. |
-| `SQSD_HTTP_MAX_CONNS`                   | `50`               | no                                 | Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.                                   |
-| `SQSD_HTTP_URL`                         |                    | yes                                | The URL of your service to make a request to.                                                          |
-| `SQSD_HTTP_CONTENT_TYPE`                |                    | no                                 | The value to send for the HTTP header `Content-Type` when making a request to your service.            |
-| `AWS_ENDPOINT`                          |                    | no                                 | Custom AWS Endpoint to use for testing locally with elasticMQ                                          |
-| `APP_API_SECRET_KEY`                    |                    | no                                 | Secret key used for generating HMAC SHA256 Hash to send to `SQSD_HTTP_URL`                             |
+|**Environment Variable**|**Default Value*|**Required**|**Description**|
+|-|-|-|-|
+|`SQSD_QUEUE_REGION`||yes|The region of the SQS queue.|
+|`SQSD_QUEUE_URL`||yes|The URL of the SQS queue.|
+|`SQSD_QUEUE_MAX_MSGS`|`10`|no|Max number of messages a worker should try to receive from the SQS queue.|
+|`SQSD_QUEUE_WAIT_TIME`|`10`|no|Number of seconds for SQS to wait until a message is available in the queue before sending a response.|
+|`SQSD_HTTP_MAX_CONNS`|`50`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
+|`SQSD_HTTP_URL`||yes|The URL of your service to make a request to.|
+|`SQSD_HTTP_CONTENT_TYPE` ||no|The value to send for the HTTP header `Content-Type` when making a request to your service.|
+|`SQSD_AWS_ENDPOINT` ||no|Sets the AWS endpoint.|
+|`SQSD_HTTP_HMAC_HEADER`||no|The name of the HTTP header to send the HMAC hash with.|
+|`SQSD_HMAC_SECRET_KEY`||no|Secret key to use when generating HMAC hash send to `SQSD_HTTP_URL`.|
+
+HMAC hashes are generated using SHA-256.
 
 ## Todo
 - [ ] More Tests

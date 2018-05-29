@@ -1,6 +1,10 @@
 package supervisor
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -138,4 +142,52 @@ func TestSupervisorHTTPError(t *testing.T) {
 
 	supervisor.Start(1)
 	supervisor.Wait()
+}
+
+func TestSupervisorHMAC(t *testing.T) {
+	hmacHeader := "hmac"
+	hmacSecretKey := []byte("foobar")
+	hmacSuccess := false
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mac := hmac.New(sha256.New, hmacSecretKey)
+
+		body, _ := ioutil.ReadAll(r.Body)
+		r.Body.Close()
+
+		mac.Write([]byte(fmt.Sprintf("%s %s%s", r.Method, fmt.Sprintf("http://%s", r.Host), string(body))))
+		expectedMAC := hex.EncodeToString(mac.Sum(nil))
+
+		hmacSuccess = hmac.Equal([]byte(r.Header.Get(hmacHeader)), []byte(expectedMAC))
+	}))
+	defer ts.Close()
+
+	log.SetOutput(ioutil.Discard)
+	logger := log.WithFields(log.Fields{})
+	mockSQS := &mockSQS{}
+	config := WorkerConfig{
+		HTTPURL: ts.URL,
+
+		HTTPHMACHeader: hmacHeader,
+		HMACSecretKey:  hmacSecretKey,
+	}
+
+	supervisor := NewSupervisor(logger, mockSQS, &http.Client{}, config)
+
+	mockSQS.receiveMessageFunc = func(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+		defer supervisor.Shutdown()
+
+		return &sqs.ReceiveMessageOutput{
+			Messages: []*sqs.Message{{
+				Body:          aws.String("message 1"),
+				MessageId:     aws.String("m1"),
+				ReceiptHandle: aws.String("r1"),
+			}},
+		}, nil
+	}
+
+	supervisor.Start(1)
+	supervisor.Wait()
+
+	assert.True(t, hmacSuccess)
 }

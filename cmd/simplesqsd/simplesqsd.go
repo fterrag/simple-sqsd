@@ -14,10 +14,6 @@ import (
 )
 
 type config struct {
-	AWSEndpoint string
-
-	AppApiSecretKey []byte
-
 	QueueRegion      string
 	QueueURL         string
 	QueueMaxMessages int
@@ -26,14 +22,13 @@ type config struct {
 	HTTPMaxConns    int
 	HTTPURL         string
 	HTTPContentType string
+
+	AWSEndpoint   string
+	HMACSecretKey []byte
 }
 
 func main() {
 	c := &config{}
-
-	c.AWSEndpoint = os.Getenv("AWS_ENDPOINT")
-
-	c.AppApiSecretKey = []byte(os.Getenv("APP_API_SECRET_KEY"))
 
 	c.QueueRegion = os.Getenv("SQSD_QUEUE_REGION")
 	c.QueueURL = os.Getenv("SQSD_QUEUE_URL")
@@ -43,6 +38,10 @@ func main() {
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
+
+	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
+	c.HTTPHMACHeader = []byte(os.Getenv("SQSD_HTTP_HMAC_HEADER"))
+	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -79,7 +78,7 @@ func main() {
 		WithRegion(c.QueueRegion).
 		WithHTTPClient(httpClient)
 
-	if c.AWSEndpoint != "" {
+	if len(c.AWSEndpoint) > 0 {
 		sqsConfig.WithEndpoint(c.AWSEndpoint)
 	}
 
@@ -98,10 +97,11 @@ func main() {
 		QueueMaxMessages: c.QueueMaxMessages,
 		QueueWaitTime:    c.QueueWaitTime,
 
-		SecretKey: c.AppApiSecretKey,
-
 		HTTPURL:         c.HTTPURL,
 		HTTPContentType: c.HTTPContentType,
+
+		HTTPHMACHeader: c.HTTPHMACHeader,
+		HMACSecretKey:  c.HMACSecretKey,
 	}
 
 	s := supervisor.NewSupervisor(logger, sqsSvc, httpClient, wConf)

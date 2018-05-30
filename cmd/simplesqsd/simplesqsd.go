@@ -23,8 +23,9 @@ type config struct {
 	HTTPURL         string
 	HTTPContentType string
 
-	AWSEndpoint   string
-	HMACSecretKey []byte
+	AWSEndpoint    string
+	HTTPHMACHeader string
+	HMACSecretKey  []byte
 }
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
 
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
-	c.HTTPHMACHeader = []byte(os.Getenv("SQSD_HTTP_HMAC_HEADER"))
+	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
 	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
 	if len(c.QueueRegion) == 0 {

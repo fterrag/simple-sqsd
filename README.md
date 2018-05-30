@@ -30,7 +30,13 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_HTTP_HMAC_HEADER`||no|The name of the HTTP header to send the HMAC hash with.|
 |`SQSD_HMAC_SECRET_KEY`||no|Secret key to use when generating HMAC hash send to `SQSD_HTTP_URL`.|
 
-HMAC hashes are generated using SHA-256.
+## HMAC
+
+HMAC hashes are generated using SHA-256 with the signature made up of the following:
+```
+POST {SQSD_HTTP_URL}\n
+<SQS message body>
+```
 
 ## Todo
 - [ ] More Tests

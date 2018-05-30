@@ -22,6 +22,9 @@ type config struct {
 	HTTPMaxConns    int
 	HTTPURL         string
 	HTTPContentType string
+
+	AWSEndpoint   string
+	HMACSecretKey []byte
 }
 
 func main() {
@@ -35,6 +38,10 @@ func main() {
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
+
+	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
+	c.HTTPHMACHeader = []byte(os.Getenv("SQSD_HTTP_HMAC_HEADER"))
+	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -71,6 +78,10 @@ func main() {
 		WithRegion(c.QueueRegion).
 		WithHTTPClient(httpClient)
 
+	if len(c.AWSEndpoint) > 0 {
+		sqsConfig.WithEndpoint(c.AWSEndpoint)
+	}
+
 	sqsSvc := sqs.New(awsSess, sqsConfig)
 
 	// To workaround a kube2iam issue, expire credentials every minute.
@@ -88,6 +99,9 @@ func main() {
 
 		HTTPURL:         c.HTTPURL,
 		HTTPContentType: c.HTTPContentType,
+
+		HTTPHMACHeader: c.HTTPHMACHeader,
+		HMACSecretKey:  c.HMACSecretKey,
 	}
 
 	s := supervisor.NewSupervisor(logger, sqsSvc, httpClient, wConf)

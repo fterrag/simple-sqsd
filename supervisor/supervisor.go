@@ -2,8 +2,12 @@ package supervisor
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -15,10 +19,11 @@ import (
 type Supervisor struct {
 	sync.Mutex
 
-	logger       *log.Entry
-	sqs          sqsiface.SQSAPI
-	httpClient   httpClient
-	workerConfig WorkerConfig
+	logger        *log.Entry
+	sqs           sqsiface.SQSAPI
+	httpClient    httpClient
+	workerConfig  WorkerConfig
+	hmacSignature string
 
 	startOnce sync.Once
 	wg        sync.WaitGroup
@@ -33,6 +38,9 @@ type WorkerConfig struct {
 
 	HTTPURL         string
 	HTTPContentType string
+
+	HTTPHMACHeader string
+	HMACSecretKey  []byte
 }
 
 type httpClient interface {
@@ -41,10 +49,11 @@ type httpClient interface {
 
 func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient, config WorkerConfig) *Supervisor {
 	return &Supervisor{
-		logger:       logger,
-		sqs:          sqs,
-		httpClient:   httpClient,
-		workerConfig: config,
+		logger:        logger,
+		sqs:           sqs,
+		httpClient:    httpClient,
+		workerConfig:  config,
+		hmacSignature: fmt.Sprintf("POST %s\n", config.HTTPURL),
 	}
 }
 
@@ -132,6 +141,15 @@ func (s *Supervisor) httpRequest(body string) error {
 		return fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
 
+	if len(s.workerConfig.HMACSecretKey) > 0 {
+		hmac, err := makeHMAC(strings.Join([]string{s.hmacSignature, body}, ""), s.workerConfig.HMACSecretKey)
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set(s.workerConfig.HTTPHMACHeader, hmac)
+	}
+
 	if len(s.workerConfig.HTTPContentType) > 0 {
 		req.Header.Set("Content-Type", s.workerConfig.HTTPContentType)
 	}
@@ -148,4 +166,15 @@ func (s *Supervisor) httpRequest(body string) error {
 	}
 
 	return nil
+}
+
+func makeHMAC(signature string, secretKey []byte) (string, error) {
+	mac := hmac.New(sha256.New, secretKey)
+
+	_, err := mac.Write([]byte(signature))
+	if err != nil {
+		return "", fmt.Errorf("Error while writing HMAC: %s", err)
+	}
+
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }

@@ -17,7 +17,7 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 
 ## Configuration
 
-|**Environment Variable**|**Default Value*|**Required**|**Description**|
+|**Environment Variable**|**Default Value**|**Required**|**Description**|
 |-|-|-|-|
 |`SQSD_QUEUE_REGION`||yes|The region of the SQS queue.|
 |`SQSD_QUEUE_URL`||yes|The URL of the SQS queue.|

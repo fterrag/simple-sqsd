@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -84,14 +83,6 @@ func main() {
 	}
 
 	sqsSvc := sqs.New(awsSess, sqsConfig)
-
-	// To workaround a kube2iam issue, expire credentials every minute.
-	go func() {
-		for {
-			sqsSvc.Config.Credentials.Expire()
-			time.Sleep(time.Minute)
-		}
-	}()
 
 	wConf := supervisor.WorkerConfig{
 		QueueURL:         c.QueueURL,

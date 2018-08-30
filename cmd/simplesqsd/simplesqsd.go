@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -56,6 +57,17 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
+
+	logLevel := os.Getenv("LOG_LEVEL")
+	if len(logLevel) == 0 {
+		logLevel = "info"
+	}
+	if parsedLevel, err := log.ParseLevel(logLevel); err == nil {
+		log.SetLevel(parsedLevel)
+	} else {
+		log.Fatal(err)
+	}
+
 	logger := log.WithFields(log.Fields{
 		"queueRegion":  c.QueueRegion,
 		"queueUrl":     c.QueueURL,

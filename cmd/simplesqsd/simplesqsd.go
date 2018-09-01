@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -25,9 +27,15 @@ type config struct {
 	AWSEndpoint    string
 	HTTPHMACHeader string
 	HMACSecretKey  []byte
+
+	HTTPHealthPath        string
+	HTTPHealthWait        int
+	HTTPHealthInterval    int
+	HTTPHealthSucessCount int
 }
 
 func main() {
+
 	c := &config{}
 
 	c.QueueRegion = os.Getenv("SQSD_QUEUE_REGION")
@@ -38,6 +46,11 @@ func main() {
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
+
+	c.HTTPHealthPath = os.Getenv("SQSD_HTTP_HEALTH_PATH")
+	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
+	c.HTTPHealthInterval = getEnvInt("SQSD_HTTP_HEALTH_INTERVAL", 5)
+	c.HTTPHealthSucessCount = getEnvInt("SQSD_HTTP_HEALTH_SUCCESS_COUNT", 1)
 
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
@@ -56,12 +69,44 @@ func main() {
 	}
 
 	log.SetFormatter(&log.JSONFormatter{})
+
+	logLevel := os.Getenv("LOG_LEVEL")
+	if len(logLevel) == 0 {
+		logLevel = "info"
+	}
+	if parsedLevel, err := log.ParseLevel(logLevel); err == nil {
+		log.SetLevel(parsedLevel)
+	} else {
+		log.Fatal(err)
+	}
+
 	logger := log.WithFields(log.Fields{
 		"queueRegion":  c.QueueRegion,
 		"queueUrl":     c.QueueURL,
 		"httpMaxConns": c.HTTPMaxConns,
 		"httpPath":     c.HTTPURL,
 	})
+
+	if len(c.HTTPHealthPath) != 0 {
+		numSuccesses := 0
+		healthURL := fmt.Sprintf("%s%s", c.HTTPURL, c.HTTPHealthPath)
+		log.Infof("Waiting %d seconds before staring health check at '%s'", c.HTTPHealthWait, healthURL)
+		time.Sleep(time.Duration(c.HTTPHealthWait) * time.Second)
+		for {
+			if resp, err := http.Get(healthURL); err == nil {
+				log.Infof("%#v", resp)
+				if numSuccesses == c.HTTPHealthSucessCount {
+					break
+				} else {
+					numSuccesses++
+				}
+			} else {
+				log.Debugf("Health check failed: %s. Waiting for %d seconds before next attempt", err, c.HTTPHealthInterval)
+				time.Sleep(time.Duration(c.HTTPHealthInterval) * time.Second)
+			}
+		}
+		log.Info("Health check succeeded. Starting message processing")
+	}
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{

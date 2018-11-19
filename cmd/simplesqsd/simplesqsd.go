@@ -20,9 +20,10 @@ type config struct {
 	QueueMaxMessages int
 	QueueWaitTime    int
 
-	HTTPMaxConns    int
-	HTTPURL         string
-	HTTPContentType string
+	HTTPMaxConns           int
+	HTTPURL                string
+	HTTPContentType        string
+	HTTPRetryAfterAttempts int
 
 	AWSEndpoint    string
 	HTTPHMACHeader string
@@ -46,6 +47,7 @@ func main() {
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
+	c.HTTPRetryAfterAttempts = getEnvInt("SQSD_HTTP_RETRY_AFTER_MAX_ATTEMPTS", 0)
 
 	c.HTTPHealthPath = os.Getenv("SQSD_HTTP_HEALTH_PATH")
 	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
@@ -136,6 +138,7 @@ func main() {
 
 		HTTPURL:         c.HTTPURL,
 		HTTPContentType: c.HTTPContentType,
+		HTTPRetryAfterAttempts: c.HTTPRetryAfterAttempts,
 
 		HTTPHMACHeader: c.HTTPHMACHeader,
 		HMACSecretKey:  c.HMACSecretKey,

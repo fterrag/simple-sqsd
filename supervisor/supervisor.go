@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
+	"strconv"
 	"net/http"
 	"strings"
 	"sync"
@@ -36,8 +38,9 @@ type WorkerConfig struct {
 	QueueMaxMessages int
 	QueueWaitTime    int
 
-	HTTPURL         string
-	HTTPContentType string
+	HTTPURL                string
+	HTTPContentType        string
+	HTTPRetryAfterAttempts int
 
 	HTTPHMACHeader string
 	HMACSecretKey  []byte
@@ -154,14 +157,32 @@ func (s *Supervisor) httpRequest(body string) error {
 		req.Header.Set("Content-Type", s.workerConfig.HTTPContentType)
 	}
 
+	retriesCount := s.workerConfig.HTTPRetryAfterAttempts
+	return s.requestWithRetry(req, retryOnTooManyRequests(retriesCount))
+}
+
+type ShouldRetry = func (*http.Response) (bool, error)
+func (s *Supervisor) requestWithRetry(req *http.Request, shouldRetry ShouldRetry) error {
 	res, err := s.httpClient.Do(req)
+
 	if err != nil {
 		return fmt.Errorf("Error while making HTTP request: %s", err)
 	}
 
 	res.Body.Close()
+	
+	requestFailed := res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed
+	
+	if requestFailed {
+		retry, err := shouldRetry(res)
+		if err != nil {
+			return err
+		}
+		
+		if retry {
+			return s.requestWithRetry(req, shouldRetry)
+		}
 
-	if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
 		return fmt.Errorf("Non-Success status code received")
 	}
 
@@ -177,4 +198,38 @@ func makeHMAC(signature string, secretKey []byte) (string, error) {
 	}
 
 	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func retryOnTooManyRequests(attempts int) ShouldRetry {
+	retries := attempts
+
+	return func (res *http.Response) (bool, error) {
+		if retries == 0 {
+			return false, nil
+		}
+
+		retries--
+		retryAfter := res.Header.Get("Retry-After")
+
+		if res.StatusCode != http.StatusTooManyRequests || retryAfter == "" {
+			return false, nil
+		}
+
+		waitTime := time.Duration(1) * time.Second
+		seconds, err := strconv.ParseInt(retryAfter, 10, 0)
+		
+		if err != nil {
+			delayUntil, err := time.Parse(time.RFC1123, retryAfter)
+			if err != nil {
+				return false, fmt.Errorf("Unexpected value provided on Retry-After header \n %s", err)
+			}
+
+			waitTime = time.Until(delayUntil)
+		} else {
+			waitTime = time.Duration(seconds) * time.Second
+		}
+		
+		time.Sleep(waitTime)
+		return true, nil
+	}
 }

@@ -26,7 +26,6 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_HTTP_MAX_CONNS`|`50`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
 |`SQSD_HTTP_URL`||yes|The URL of your service to make a request to.|
 |`SQSD_HTTP_CONTENT_TYPE` ||no|The value to send for the HTTP header `Content-Type` when making a request to your service.|
-|[`SQSD_HTTP_RETRY_AFTER_MAX_ATTEMPTS`](#retry-after) ||`0`|Max number of attempts retries to attempt when receiving a 429 status code with Retry-After header.|
 |`SQSD_AWS_ENDPOINT` ||no|Sets the AWS endpoint.|
 |`SQSD_HTTP_HMAC_HEADER`||no|The name of the HTTP header to send the HMAC hash with.|
 |`SQSD_HMAC_SECRET_KEY`||no|Secret key to use when generating HMAC hash send to `SQSD_HTTP_URL`.|
@@ -43,11 +42,9 @@ POST {SQSD_HTTP_URL}\n
 <SQS message body>
 ```
 
-## Retry-After
-Provided `SQSD_HTTP_RETRY_AFTER_MAX_ATTEMPTS`
+## Support 429 Status codes with Retry-After
 
-* The deamon will await the time specified in the `Retry-After` header when the service responds with [429 status code](https://tools.ietf.org/html/rfc6585#section-4).
-* The deamon will only attempt the amount of retries especified with `SQSD_HTTP_RETRY_AFTER_MAX_ATTEMPTS`.
+* SQSD will attempt to change the message visibility when the service responds with [429 status code](https://tools.ietf.org/html/rfc6585#section-4).
 * `Retry-After` response header can either contain an integer with the amount of senconds to wait or a [RFC1123](https://golang.org/pkg/time/#pkg-constants) formatted date.
 
 ## Todo

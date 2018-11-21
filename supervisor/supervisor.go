@@ -6,11 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"time"
-	"strconv"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -38,9 +38,8 @@ type WorkerConfig struct {
 	QueueMaxMessages int
 	QueueWaitTime    int
 
-	HTTPURL                string
-	HTTPContentType        string
-	HTTPRetryAfterAttempts int
+	HTTPURL         string
+	HTTPContentType string
 
 	HTTPHMACHeader string
 	HMACSecretKey  []byte
@@ -49,6 +48,11 @@ type WorkerConfig struct {
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
+
+type (
+	DeleteMessage bool
+	ChangeVisibility int64
+)
 
 func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient, config WorkerConfig) *Supervisor {
 	return &Supervisor{
@@ -108,37 +112,55 @@ func (s *Supervisor) worker() {
 		}
 
 		deleteEntries := make([]*sqs.DeleteMessageBatchRequestEntry, 0)
+		changeVisibilityEntries := make([]*sqs.ChangeMessageVisibilityBatchRequestEntry, 0)
 
 		for _, msg := range output.Messages {
-			err := s.httpRequest(*msg.Body)
-			if err != nil {
-				s.logger.Errorf("Error while making HTTP request: %s", err)
-				continue
+			result := s.httpRequest(*msg.Body)
+
+			switch val := result.(type) {
+			case DeleteMessage:
+				deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
+					Id:            msg.MessageId,
+					ReceiptHandle: msg.ReceiptHandle,
+				})
+			case ChangeVisibility:
+				changeVisibilityEntries = append(changeVisibilityEntries, &sqs.ChangeMessageVisibilityBatchRequestEntry{
+					Id:                msg.MessageId,
+					ReceiptHandle:     msg.ReceiptHandle,
+					VisibilityTimeout: aws.Int64(int64(val)),
+				})
+			case error:
+				s.logger.Errorf("Error while making HTTP request: %s", val)
+			}
+		}
+
+		if len(deleteEntries) > 0 {
+			delInput := &sqs.DeleteMessageBatchInput{
+				Entries:  deleteEntries,
+				QueueUrl: aws.String(s.workerConfig.QueueURL),
 			}
 
-			deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
-				Id:            msg.MessageId,
-				ReceiptHandle: msg.ReceiptHandle,
-			})
+			_, err = s.sqs.DeleteMessageBatch(delInput)
+			if err != nil {
+				s.logger.Errorf("Error while deleting messages from SQS: %s", err)
+			}
 		}
 
-		if len(deleteEntries) == 0 {
-			continue
-		}
+		if len(changeVisibilityEntries) > 0 {
+			changeVisibilityInput := &sqs.ChangeMessageVisibilityBatchInput{
+				Entries:  changeVisibilityEntries,
+				QueueUrl: aws.String(s.workerConfig.QueueURL),
+			}
 
-		delInput := &sqs.DeleteMessageBatchInput{
-			Entries:  deleteEntries,
-			QueueUrl: aws.String(s.workerConfig.QueueURL),
-		}
-
-		_, err = s.sqs.DeleteMessageBatch(delInput)
-		if err != nil {
-			s.logger.Errorf("Error while deleting messages from SQS: %s", err)
+			_, err = s.sqs.ChangeMessageVisibilityBatch(changeVisibilityInput)
+			if err != nil {
+				s.logger.Errorf("Error while changing visibility on messages from SQS: %s", err)
+			}
 		}
 	}
 }
 
-func (s *Supervisor) httpRequest(body string) error {
+func (s *Supervisor) httpRequest(body string) interface{} {
 	req, err := http.NewRequest("POST", s.workerConfig.HTTPURL, bytes.NewBufferString(body))
 	if err != nil {
 		return fmt.Errorf("Error while creating HTTP request: %s", err)
@@ -157,36 +179,27 @@ func (s *Supervisor) httpRequest(body string) error {
 		req.Header.Set("Content-Type", s.workerConfig.HTTPContentType)
 	}
 
-	retriesCount := s.workerConfig.HTTPRetryAfterAttempts
-	return s.requestWithRetry(req, retryOnTooManyRequests(retriesCount))
-}
-
-type ShouldRetry = func (*http.Response) (bool, error)
-func (s *Supervisor) requestWithRetry(req *http.Request, shouldRetry ShouldRetry) error {
 	res, err := s.httpClient.Do(req)
-
 	if err != nil {
 		return fmt.Errorf("Error while making HTTP request: %s", err)
 	}
 
 	res.Body.Close()
-	
-	requestFailed := res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed
-	
-	if requestFailed {
-		retry, err := shouldRetry(res)
-		if err != nil {
-			return err
-		}
-		
-		if retry {
-			return s.requestWithRetry(req, shouldRetry)
+
+	if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
+		if res.StatusCode == http.StatusTooManyRequests {
+			waitTime, err := getAwaitTimeFromHeader(res)
+			if err != nil {
+				return fmt.Errorf("Error while getting response header %s", err)
+			}
+
+			return ChangeVisibility(waitTime)
 		}
 
 		return fmt.Errorf("Non-Success status code received")
 	}
 
-	return nil
+	return DeleteMessage(true)
 }
 
 func makeHMAC(signature string, secretKey []byte) (string, error) {
@@ -200,36 +213,22 @@ func makeHMAC(signature string, secretKey []byte) (string, error) {
 	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-func retryOnTooManyRequests(attempts int) ShouldRetry {
-	retries := attempts
-
-	return func (res *http.Response) (bool, error) {
-		if retries == 0 {
-			return false, nil
-		}
-
-		retries--
-		retryAfter := res.Header.Get("Retry-After")
-
-		if res.StatusCode != http.StatusTooManyRequests || retryAfter == "" {
-			return false, nil
-		}
-
-		waitTime := time.Duration(1) * time.Second
-		seconds, err := strconv.ParseInt(retryAfter, 10, 0)
-		
-		if err != nil {
-			delayUntil, err := time.Parse(time.RFC1123, retryAfter)
-			if err != nil {
-				return false, fmt.Errorf("Unexpected value provided on Retry-After header \n %s", err)
-			}
-
-			waitTime = time.Until(delayUntil)
-		} else {
-			waitTime = time.Duration(seconds) * time.Second
-		}
-		
-		time.Sleep(waitTime)
-		return true, nil
+func getAwaitTimeFromHeader(res *http.Response) (int64, error) {
+	retryAfter := res.Header.Get("Retry-After")
+	if retryAfter == "" {
+		return 0, fmt.Errorf("Unexpected value provided on Retry-After header \n")
 	}
+
+	seconds, err := strconv.ParseInt(retryAfter, 10, 0)
+	if err == nil {
+		return seconds, nil
+	}
+
+	parsedTime, err := time.Parse(time.RFC1123, retryAfter)
+	if err != nil {
+		return 0, fmt.Errorf("Unexpected value provided on Retry-After header \n %s", err)
+	}
+
+	delayUntil := time.Until(parsedTime)
+	return int64(delayUntil.Seconds()), nil
 }

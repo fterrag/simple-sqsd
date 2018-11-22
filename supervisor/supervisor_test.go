@@ -96,6 +96,11 @@ func TestSupervisorSuccess(t *testing.T) {
 		return nil, nil
 	}
 
+	mockSQS.changeMessageVisibilityBatchFunc = func(input *sqs.ChangeMessageVisibilityBatchInput) (*sqs.ChangeMessageVisibilityBatchOutput, error) {
+		assert.Fail(t, "ChangeMessageVisibilityBatchFunc was called")
+		return nil, nil
+	}
+
 	supervisor.Start(1)
 	supervisor.Wait()
 }
@@ -150,6 +155,11 @@ func TestSupervisorHTTPError(t *testing.T) {
 		return nil, nil
 	}
 
+	mockSQS.changeMessageVisibilityBatchFunc = func(input *sqs.ChangeMessageVisibilityBatchInput) (*sqs.ChangeMessageVisibilityBatchOutput, error) {
+		assert.Fail(t, "ChangeMessageVisibilityBatchFunc was called")
+		return nil, nil
+	}
+
 	supervisor.Start(1)
 	supervisor.Wait()
 }
@@ -194,6 +204,11 @@ func TestSupervisorHMAC(t *testing.T) {
 				ReceiptHandle: aws.String("r1"),
 			}},
 		}, nil
+	}
+
+	mockSQS.changeMessageVisibilityBatchFunc = func(input *sqs.ChangeMessageVisibilityBatchInput) (*sqs.ChangeMessageVisibilityBatchOutput, error) {
+		assert.Fail(t, "ChangeMessageVisibilityBatchFunc was called")
+		return nil, nil
 	}
 
 	supervisor.Start(1)

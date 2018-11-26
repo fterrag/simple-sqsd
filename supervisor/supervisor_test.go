@@ -222,13 +222,7 @@ func TestSupervisorTooManyRequests(t *testing.T) {
 		requestCount++
 
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		delayUntil := time.Now().Add(delayTime)
-		if requestCount == 1 {
-			w.Header().Set("Retry-After", fmt.Sprintf("%v", delayTime.Seconds()))
-		} else {
-			w.Header().Set("Retry-After", delayUntil.Format(time.RFC1123))
-		}
-
+		w.Header().Set("Retry-After", fmt.Sprintf("%v", delayTime.Seconds()))
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))
 	defer ts.Close()

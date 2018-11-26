@@ -45,7 +45,7 @@ POST {SQSD_HTTP_URL}\n
 ## Support 429 Status codes with Retry-After
 
 * SQSD will attempt to change the message visibility when the service responds with [429 status code](https://tools.ietf.org/html/rfc6585#section-4).
-* `Retry-After` response header can either contain an integer with the amount of senconds to wait or a [RFC1123](https://golang.org/pkg/time/#pkg-constants) formatted date.
+* `Retry-After` response header should contain an integer with the amount of senconds to wait.
 
 ## Todo
 - [ ] More Tests

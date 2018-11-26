@@ -11,20 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
-
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockSQS struct {
 	sqsiface.SQSAPI
 
-	receiveMessageFunc     func(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
-	deleteMessageBatchFunc func(*sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
+	receiveMessageFunc               func(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
+	deleteMessageBatchFunc           func(*sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
 	changeMessageVisibilityBatchFunc func(*sqs.ChangeMessageVisibilityBatchInput) (*sqs.ChangeMessageVisibilityBatchOutput, error)
 }
 
@@ -244,7 +242,7 @@ func TestSupervisorTooManyRequests(t *testing.T) {
 	}
 
 	mockSQS.receiveMessageFunc = func(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
-		return &sqs.ReceiveMessageOutput{ Messages: []*sqs.Message{{
+		return &sqs.ReceiveMessageOutput{Messages: []*sqs.Message{{
 			Body:          aws.String("message 1"),
 			MessageId:     aws.String("m1"),
 			ReceiptHandle: aws.String("r1"),

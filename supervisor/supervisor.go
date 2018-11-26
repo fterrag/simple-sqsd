@@ -5,12 +5,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -48,11 +48,6 @@ type WorkerConfig struct {
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
-
-type (
-	DeleteMessage bool
-	ChangeVisibility int64
-)
 
 func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient, config WorkerConfig) *Supervisor {
 	return &Supervisor{
@@ -115,23 +110,38 @@ func (s *Supervisor) worker() {
 		changeVisibilityEntries := make([]*sqs.ChangeMessageVisibilityBatchRequestEntry, 0)
 
 		for _, msg := range output.Messages {
-			result := s.httpRequest(*msg.Body)
-
-			switch val := result.(type) {
-			case DeleteMessage:
-				deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
-					Id:            msg.MessageId,
-					ReceiptHandle: msg.ReceiptHandle,
-				})
-			case ChangeVisibility:
-				changeVisibilityEntries = append(changeVisibilityEntries, &sqs.ChangeMessageVisibilityBatchRequestEntry{
-					Id:                msg.MessageId,
-					ReceiptHandle:     msg.ReceiptHandle,
-					VisibilityTimeout: aws.Int64(int64(val)),
-				})
-			case error:
-				s.logger.Errorf("Error while making HTTP request: %s", val)
+			res, err := s.httpRequest(*msg.Body)
+			if err != nil {
+				s.logger.Errorf("Error making HTTP request: %s", err)
+				continue
 			}
+
+			if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
+
+				if res.StatusCode == http.StatusTooManyRequests {
+					sec, err := getRetryAfterFromResponse(res)
+					if err != nil {
+						s.logger.Errorf("Error getting retry after value from HTTP response: %s", err)
+						continue
+					}
+
+					changeVisibilityEntries = append(changeVisibilityEntries, &sqs.ChangeMessageVisibilityBatchRequestEntry{
+						Id:                msg.MessageId,
+						ReceiptHandle:     msg.ReceiptHandle,
+						VisibilityTimeout: aws.Int64(sec),
+					})
+				}
+
+				s.logger.Errorf("Non-successful status code: %d", res.StatusCode)
+
+				continue
+
+			}
+
+			deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
+				Id:            msg.MessageId,
+				ReceiptHandle: msg.ReceiptHandle,
+			})
 		}
 
 		if len(deleteEntries) > 0 {
@@ -160,16 +170,16 @@ func (s *Supervisor) worker() {
 	}
 }
 
-func (s *Supervisor) httpRequest(body string) interface{} {
+func (s *Supervisor) httpRequest(body string) (*http.Response, error) {
 	req, err := http.NewRequest("POST", s.workerConfig.HTTPURL, bytes.NewBufferString(body))
 	if err != nil {
-		return fmt.Errorf("Error while creating HTTP request: %s", err)
+		return nil, fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
 
 	if len(s.workerConfig.HMACSecretKey) > 0 {
 		hmac, err := makeHMAC(strings.Join([]string{s.hmacSignature, body}, ""), s.workerConfig.HMACSecretKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		req.Header.Set(s.workerConfig.HTTPHMACHeader, hmac)
@@ -181,25 +191,12 @@ func (s *Supervisor) httpRequest(body string) interface{} {
 
 	res, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Error while making HTTP request: %s", err)
+		return res, err
 	}
 
 	res.Body.Close()
 
-	if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
-		if res.StatusCode == http.StatusTooManyRequests {
-			waitTime, err := getAwaitTimeFromHeader(res)
-			if err != nil {
-				return fmt.Errorf("Error while getting response header %s", err)
-			}
-
-			return ChangeVisibility(waitTime)
-		}
-
-		return fmt.Errorf("Non-Success status code received")
-	}
-
-	return DeleteMessage(true)
+	return res, nil
 }
 
 func makeHMAC(signature string, secretKey []byte) (string, error) {
@@ -213,22 +210,16 @@ func makeHMAC(signature string, secretKey []byte) (string, error) {
 	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-func getAwaitTimeFromHeader(res *http.Response) (int64, error) {
+func getRetryAfterFromResponse(res *http.Response) (int64, error) {
 	retryAfter := res.Header.Get("Retry-After")
-	if retryAfter == "" {
-		return 0, fmt.Errorf("Unexpected value provided on Retry-After header \n")
+	if len(retryAfter) == 0 {
+		return 0, errors.New("Retry-After header value is empty")
 	}
 
 	seconds, err := strconv.ParseInt(retryAfter, 10, 0)
-	if err == nil {
-		return seconds, nil
-	}
-
-	parsedTime, err := time.Parse(time.RFC1123, retryAfter)
 	if err != nil {
-		return 0, fmt.Errorf("Unexpected value provided on Retry-After header \n %s", err)
+		return 0, err
 	}
 
-	delayUntil := time.Until(parsedTime)
-	return int64(delayUntil.Seconds()), nil
+	return seconds, nil
 }

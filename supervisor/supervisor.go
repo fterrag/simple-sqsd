@@ -5,8 +5,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -105,12 +107,35 @@ func (s *Supervisor) worker() {
 		}
 
 		deleteEntries := make([]*sqs.DeleteMessageBatchRequestEntry, 0)
+		changeVisibilityEntries := make([]*sqs.ChangeMessageVisibilityBatchRequestEntry, 0)
 
 		for _, msg := range output.Messages {
-			err := s.httpRequest(*msg.Body)
+			res, err := s.httpRequest(*msg.Body)
 			if err != nil {
-				s.logger.Errorf("Error while making HTTP request: %s", err)
+				s.logger.Errorf("Error making HTTP request: %s", err)
 				continue
+			}
+
+			if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
+
+				if res.StatusCode == http.StatusTooManyRequests {
+					sec, err := getRetryAfterFromResponse(res)
+					if err != nil {
+						s.logger.Errorf("Error getting retry after value from HTTP response: %s", err)
+						continue
+					}
+
+					changeVisibilityEntries = append(changeVisibilityEntries, &sqs.ChangeMessageVisibilityBatchRequestEntry{
+						Id:                msg.MessageId,
+						ReceiptHandle:     msg.ReceiptHandle,
+						VisibilityTimeout: aws.Int64(sec),
+					})
+				}
+
+				s.logger.Errorf("Non-successful status code: %d", res.StatusCode)
+
+				continue
+
 			}
 
 			deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
@@ -119,32 +144,42 @@ func (s *Supervisor) worker() {
 			})
 		}
 
-		if len(deleteEntries) == 0 {
-			continue
+		if len(deleteEntries) > 0 {
+			delInput := &sqs.DeleteMessageBatchInput{
+				Entries:  deleteEntries,
+				QueueUrl: aws.String(s.workerConfig.QueueURL),
+			}
+
+			_, err = s.sqs.DeleteMessageBatch(delInput)
+			if err != nil {
+				s.logger.Errorf("Error while deleting messages from SQS: %s", err)
+			}
 		}
 
-		delInput := &sqs.DeleteMessageBatchInput{
-			Entries:  deleteEntries,
-			QueueUrl: aws.String(s.workerConfig.QueueURL),
-		}
+		if len(changeVisibilityEntries) > 0 {
+			changeVisibilityInput := &sqs.ChangeMessageVisibilityBatchInput{
+				Entries:  changeVisibilityEntries,
+				QueueUrl: aws.String(s.workerConfig.QueueURL),
+			}
 
-		_, err = s.sqs.DeleteMessageBatch(delInput)
-		if err != nil {
-			s.logger.Errorf("Error while deleting messages from SQS: %s", err)
+			_, err = s.sqs.ChangeMessageVisibilityBatch(changeVisibilityInput)
+			if err != nil {
+				s.logger.Errorf("Error while changing visibility on messages from SQS: %s", err)
+			}
 		}
 	}
 }
 
-func (s *Supervisor) httpRequest(body string) error {
+func (s *Supervisor) httpRequest(body string) (*http.Response, error) {
 	req, err := http.NewRequest("POST", s.workerConfig.HTTPURL, bytes.NewBufferString(body))
 	if err != nil {
-		return fmt.Errorf("Error while creating HTTP request: %s", err)
+		return nil, fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
 
 	if len(s.workerConfig.HMACSecretKey) > 0 {
 		hmac, err := makeHMAC(strings.Join([]string{s.hmacSignature, body}, ""), s.workerConfig.HMACSecretKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		req.Header.Set(s.workerConfig.HTTPHMACHeader, hmac)
@@ -156,16 +191,12 @@ func (s *Supervisor) httpRequest(body string) error {
 
 	res, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Error while making HTTP request: %s", err)
+		return res, err
 	}
 
 	res.Body.Close()
 
-	if res.StatusCode < http.StatusOK || res.StatusCode > http.StatusIMUsed {
-		return fmt.Errorf("Non-Success status code received")
-	}
-
-	return nil
+	return res, nil
 }
 
 func makeHMAC(signature string, secretKey []byte) (string, error) {
@@ -177,4 +208,18 @@ func makeHMAC(signature string, secretKey []byte) (string, error) {
 	}
 
 	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func getRetryAfterFromResponse(res *http.Response) (int64, error) {
+	retryAfter := res.Header.Get("Retry-After")
+	if len(retryAfter) == 0 {
+		return 0, errors.New("Retry-After header value is empty")
+	}
+
+	seconds, err := strconv.ParseInt(retryAfter, 10, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	return seconds, nil
 }

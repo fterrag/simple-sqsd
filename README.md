@@ -42,6 +42,11 @@ POST {SQSD_HTTP_URL}\n
 <SQS message body>
 ```
 
+## Support 429 Status codes with Retry-After
+
+* SQSD will attempt to change the message visibility when the service responds with [429 status code](https://tools.ietf.org/html/rfc6585#section-4).
+* `Retry-After` response header should contain an integer with the amount of senconds to wait.
+
 ## Todo
 - [ ] More Tests
 - [ ] Documentation

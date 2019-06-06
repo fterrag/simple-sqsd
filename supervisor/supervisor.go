@@ -91,9 +91,10 @@ func (s *Supervisor) worker() {
 		}
 
 		recInput := &sqs.ReceiveMessageInput{
-			MaxNumberOfMessages: aws.Int64(int64(s.workerConfig.QueueMaxMessages)),
-			QueueUrl:            aws.String(s.workerConfig.QueueURL),
-			WaitTimeSeconds:     aws.Int64(int64(s.workerConfig.QueueWaitTime)),
+			MaxNumberOfMessages:   aws.Int64(int64(s.workerConfig.QueueMaxMessages)),
+			QueueUrl:              aws.String(s.workerConfig.QueueURL),
+			WaitTimeSeconds:       aws.Int64(int64(s.workerConfig.QueueWaitTime)),
+			MessageAttributeNames: aws.StringSlice([]string{"All"}),
 		}
 
 		output, err := s.sqs.ReceiveMessage(recInput)
@@ -110,7 +111,7 @@ func (s *Supervisor) worker() {
 		changeVisibilityEntries := make([]*sqs.ChangeMessageVisibilityBatchRequestEntry, 0)
 
 		for _, msg := range output.Messages {
-			res, err := s.httpRequest(*msg.Body)
+			res, err := s.httpRequest(msg)
 			if err != nil {
 				s.logger.Errorf("Error making HTTP request: %s", err)
 				continue
@@ -170,8 +171,11 @@ func (s *Supervisor) worker() {
 	}
 }
 
-func (s *Supervisor) httpRequest(body string) (*http.Response, error) {
+func (s *Supervisor) httpRequest(msg *sqs.Message) (*http.Response, error) {
+	body := *msg.Body
 	req, err := http.NewRequest("POST", s.workerConfig.HTTPURL, bytes.NewBufferString(body))
+	req.Header.Add("X-Aws-Sqsd-Msgid", *msg.MessageId)
+	s.addMessageAttributesToHeader(msg.MessageAttributes, req.Header)
 	if err != nil {
 		return nil, fmt.Errorf("Error while creating HTTP request: %s", err)
 	}
@@ -197,6 +201,12 @@ func (s *Supervisor) httpRequest(body string) (*http.Response, error) {
 	res.Body.Close()
 
 	return res, nil
+}
+
+func (s *Supervisor) addMessageAttributesToHeader(attrs map[string]*sqs.MessageAttributeValue, header http.Header) {
+	for k, v := range attrs {
+		header.Add("X-Aws-Sqsd-Attr-" + k, *v.StringValue)
+	}
 }
 
 func makeHMAC(signature string, secretKey []byte) (string, error) {

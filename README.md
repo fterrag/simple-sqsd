@@ -30,9 +30,10 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_HTTP_HMAC_HEADER`||no|The name of the HTTP header to send the HMAC hash with.|
 |`SQSD_HMAC_SECRET_KEY`||no|Secret key to use when generating HMAC hash send to `SQSD_HTTP_URL`.|
 |`SQSD_HTTP_HEALTH_PATH`||no|The path to a health check endpoint of your service. When provided, messages will not be processed until the health check returns a 200 for `HTTPHealthInterval` times |
-|`SQSD_HTTP_HEALTH_WAIT`|`5`|no|How often to wait before starting health checks|
+|`SQSD_HTTP_HEALTH_WAIT`|`5`|no|How long to wait before starting health checks|
 |`SQSD_HTTP_HEALTH_INTERVAL`|`5`|no|How often to wait between health checks|
 |`SQSD_HTTP_HEALTH_SUCCESS_COUNT`|`1`|no|How many successful health checks required in a row|
+|`SQSD_HTTP_TIMEOUT`|`30`|no|Number of seconds to wait for a response from the worker|
 
 ## HMAC
 

@@ -23,6 +23,7 @@ type config struct {
 	HTTPMaxConns    int
 	HTTPURL         string
 	HTTPContentType string
+	HTTPTimeout		int
 
 	AWSEndpoint    string
 	HTTPHMACHeader string
@@ -51,6 +52,7 @@ func main() {
 	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
 	c.HTTPHealthInterval = getEnvInt("SQSD_HTTP_HEALTH_INTERVAL", 5)
 	c.HTTPHealthSucessCount = getEnvInt("SQSD_HTTP_HEALTH_SUCCESS_COUNT", 1)
+	c.HTTPTimeout = getEnvInt("SQSD_HTTP_TIMEOUT", 30)
 
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
@@ -108,20 +110,19 @@ func main() {
 		log.Info("Health check succeeded. Starting message processing")
 	}
 
-	httpClient := &http.Client{
+	awsSess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	sqsHttpClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        c.HTTPMaxConns,
 			MaxIdleConnsPerHost: c.HTTPMaxConns,
 		},
 	}
-
-	awsSess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
 	sqsConfig := aws.NewConfig().
 		WithRegion(c.QueueRegion).
-		WithHTTPClient(httpClient)
+		WithHTTPClient(sqsHttpClient)
 
 	if len(c.AWSEndpoint) > 0 {
 		sqsConfig.WithEndpoint(c.AWSEndpoint)
@@ -139,6 +140,15 @@ func main() {
 
 		HTTPHMACHeader: c.HTTPHMACHeader,
 		HMACSecretKey:  c.HMACSecretKey,
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        c.HTTPMaxConns,
+			MaxIdleConnsPerHost: c.HTTPMaxConns,
+
+		},
+		Timeout: time.Duration(c.HTTPTimeout) * time.Second,
 	}
 
 	s := supervisor.NewSupervisor(logger, sqsSvc, httpClient, wConf)

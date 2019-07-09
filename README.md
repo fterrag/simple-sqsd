@@ -34,6 +34,7 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_HTTP_HEALTH_INTERVAL`|`5`|no|How often to wait between health checks|
 |`SQSD_HTTP_HEALTH_SUCCESS_COUNT`|`1`|no|How many successful health checks required in a row|
 |`SQSD_HTTP_TIMEOUT`|`30`|no|Number of seconds to wait for a response from the worker|
+|`SQSD_HTTP_SSL_VERIFY`|`true`|no|Enable SSL Verification on the URL of your service to make a request to (if you're using self-signed certificate)|
 
 ## HMAC
 

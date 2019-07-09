@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,7 +25,7 @@ type config struct {
 	HTTPMaxConns    int
 	HTTPURL         string
 	HTTPContentType string
-	HTTPTimeout		int
+	HTTPTimeout     int
 
 	AWSEndpoint    string
 	HTTPHMACHeader string
@@ -33,6 +35,8 @@ type config struct {
 	HTTPHealthWait        int
 	HTTPHealthInterval    int
 	HTTPHealthSucessCount int
+
+	SSLEnabled bool
 }
 
 func main() {
@@ -57,6 +61,8 @@ func main() {
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
 	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
+
+	c.SSLEnabled = getenvBool("SQSD_SSL_ENABLED", true)
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -146,7 +152,10 @@ func main() {
 		Transport: &http.Transport{
 			MaxIdleConns:        c.HTTPMaxConns,
 			MaxIdleConnsPerHost: c.HTTPMaxConns,
-
+			TLSClientConfig: &tls.Config{
+				MaxVersion:         tls.VersionTLS11,
+				InsecureSkipVerify: !c.SSLEnabled,
+			},
 		},
 		Timeout: time.Duration(c.HTTPTimeout) * time.Second,
 	}
@@ -163,4 +172,26 @@ func getEnvInt(key string, def int) int {
 	}
 
 	return val
+}
+
+var ErrEnvVarEmpty = errors.New("getenv: environment variable empty")
+
+func getenvStr(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return v, ErrEnvVarEmpty
+	}
+	return v, nil
+}
+
+func getenvBool(key string, def bool) bool {
+	s, err := getenvStr(key)
+	if err != nil {
+		return def
+	}
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return def
+	}
+	return v
 }

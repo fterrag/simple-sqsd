@@ -143,6 +143,8 @@ func (s *Supervisor) worker() {
 				Id:            msg.MessageId,
 				ReceiptHandle: msg.ReceiptHandle,
 			})
+
+			s.logger.Debugf("Message %s successfully processed", *msg.MessageId)
 		}
 
 		if len(deleteEntries) > 0 {

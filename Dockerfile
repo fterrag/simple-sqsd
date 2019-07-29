@@ -1,14 +1,15 @@
-FROM golang:1.9.2-alpine as builder
+FROM golang:1.12-alpine as builder
 
-RUN apk --no-cache add git ca-certificates wget
+ENV GO111MODULE=on
 
-WORKDIR /go/src/github.com/fterrag/simple-sqsd
+WORKDIR /app
 COPY . .
 
+RUN apk --no-cache add git alpine-sdk build-base gcc
+
+RUN go get
 RUN go get golang.org/x/tools/cmd/cover
 RUN go get github.com/mattn/goveralls
-RUN go get -u github.com/golang/dep/cmd/dep
-RUN dep ensure
 
 RUN go build cmd/simplesqsd/simplesqsd.go
 

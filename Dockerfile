@@ -16,5 +16,5 @@ RUN go build cmd/simplesqsd/simplesqsd.go
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY --from=builder /go/src/github.com/fterrag/simple-sqsd/simplesqsd .
+COPY --from=builder /app/simplesqsd .
 CMD ["./simplesqsd"]

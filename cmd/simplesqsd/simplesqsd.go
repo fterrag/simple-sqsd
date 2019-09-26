@@ -36,7 +36,8 @@ type config struct {
 	HTTPHealthInterval    int
 	HTTPHealthSucessCount int
 
-	SSLVerify bool
+	SQSHTTPTimeout int
+	SSLVerify      bool
 }
 
 func main() {
@@ -56,12 +57,13 @@ func main() {
 	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
 	c.HTTPHealthInterval = getEnvInt("SQSD_HTTP_HEALTH_INTERVAL", 5)
 	c.HTTPHealthSucessCount = getEnvInt("SQSD_HTTP_HEALTH_SUCCESS_COUNT", 1)
-	c.HTTPTimeout = getEnvInt("SQSD_HTTP_TIMEOUT", 30)
+	c.HTTPTimeout = getEnvInt("SQSD_HTTP_TIMEOUT", 5)
 
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
 	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
+	c.SQSHTTPTimeout = getEnvInt("SQSD_SQS_HTTP_TIMEOUT", 5)
 	c.SSLVerify = getenvBool("SQSD_HTTP_SSL_VERIFY", true)
 
 	if len(c.QueueRegion) == 0 {
@@ -121,6 +123,7 @@ func main() {
 	}))
 
 	sqsHttpClient := &http.Client{
+		Timeout: time.Duration(c.SQSHTTPTimeout) * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConns:        c.HTTPMaxConns,
 			MaxIdleConnsPerHost: c.HTTPMaxConns,

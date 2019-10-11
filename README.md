@@ -23,7 +23,7 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_QUEUE_URL`||yes|The URL of the SQS queue.|
 |`SQSD_QUEUE_MAX_MSGS`|`10`|no|Max number of messages a worker should try to receive from the SQS queue.|
 |`SQSD_QUEUE_WAIT_TIME`|`10`|no|Number of seconds for SQS to wait until a message is available in the queue before sending a response.|
-|`SQSD_HTTP_MAX_CONNS`|`50`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
+|`SQSD_HTTP_MAX_CONNS`|`15`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
 |`SQSD_HTTP_URL`||yes|The URL of your service to make a request to.|
 |`SQSD_HTTP_CONTENT_TYPE` ||no|The value to send for the HTTP header `Content-Type` when making a request to your service.|
 |`SQSD_AWS_ENDPOINT` ||no|Sets the AWS endpoint.|
@@ -33,8 +33,8 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_HTTP_HEALTH_WAIT`|`5`|no|How long to wait before starting health checks|
 |`SQSD_HTTP_HEALTH_INTERVAL`|`5`|no|How often to wait between health checks|
 |`SQSD_HTTP_HEALTH_SUCCESS_COUNT`|`1`|no|How many successful health checks required in a row|
-|`SQSD_HTTP_TIMEOUT`|`5`|no|Number of seconds to wait for a response from the worker|
-|`SQSD_SQS_HTTP_TIMEOUT`|`5`|no|Number of seconds to wait for a response from sqs|
+|`SQSD_HTTP_TIMEOUT`|`15`|no|Number of seconds to wait for a response from the worker|
+|`SQSD_SQS_HTTP_TIMEOUT`|`15`|no|Number of seconds to wait for a response from sqs|
 |`SQSD_HTTP_SSL_VERIFY`|`true`|no|Enable SSL Verification on the URL of your service to make a request to (if you're using self-signed certificate)|
 
 ## HMAC

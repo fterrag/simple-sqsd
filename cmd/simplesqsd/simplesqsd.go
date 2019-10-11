@@ -49,7 +49,7 @@ func main() {
 	c.QueueMaxMessages = getEnvInt("SQSD_QUEUE_MAX_MSGS", 10)
 	c.QueueWaitTime = getEnvInt("SQSD_QUEUE_WAIT_TIME", 10)
 
-	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 50)
+	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 15)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
 
@@ -57,13 +57,13 @@ func main() {
 	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
 	c.HTTPHealthInterval = getEnvInt("SQSD_HTTP_HEALTH_INTERVAL", 5)
 	c.HTTPHealthSucessCount = getEnvInt("SQSD_HTTP_HEALTH_SUCCESS_COUNT", 1)
-	c.HTTPTimeout = getEnvInt("SQSD_HTTP_TIMEOUT", 5)
+	c.HTTPTimeout = getEnvInt("SQSD_HTTP_TIMEOUT", 15)
 
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
 	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
-	c.SQSHTTPTimeout = getEnvInt("SQSD_SQS_HTTP_TIMEOUT", 5)
+	c.SQSHTTPTimeout = getEnvInt("SQSD_SQS_HTTP_TIMEOUT", 15)
 	c.SSLVerify = getenvBool("SQSD_HTTP_SSL_VERIFY", true)
 
 	if len(c.QueueRegion) == 0 {

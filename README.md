@@ -23,7 +23,7 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secr
 |`SQSD_QUEUE_URL`||yes|The URL of the SQS queue.|
 |`SQSD_QUEUE_MAX_MSGS`|`10`|no|Max number of messages a worker should try to receive from the SQS queue.|
 |`SQSD_QUEUE_WAIT_TIME`|`10`|no|Number of seconds for SQS to wait until a message is available in the queue before sending a response.|
-|`SQSD_HTTP_MAX_CONNS`|`15`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
+|`SQSD_HTTP_MAX_CONNS`|`25`|no|Maximum number of concurrent HTTP requests to make to SQSD_HTTP_URL.|
 |`SQSD_HTTP_URL`||yes|The URL of your service to make a request to.|
 |`SQSD_HTTP_CONTENT_TYPE` ||no|The value to send for the HTTP header `Content-Type` when making a request to your service.|
 |`SQSD_AWS_ENDPOINT` ||no|Sets the AWS endpoint.|

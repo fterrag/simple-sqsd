@@ -49,7 +49,7 @@ func main() {
 	c.QueueMaxMessages = getEnvInt("SQSD_QUEUE_MAX_MSGS", 10)
 	c.QueueWaitTime = getEnvInt("SQSD_QUEUE_WAIT_TIME", 10)
 
-	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 15)
+	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 25)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
 

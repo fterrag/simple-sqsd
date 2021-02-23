@@ -44,7 +44,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build and push master
+      - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .

@@ -26,9 +26,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            ghcr.io/bdashrad/simple-sqsd
-          # ghcr.io/fterrag/simple-sqsd
-          # fterrag/simple-sqsd
+            ghcr.io/fterrag/simple-sqsd
           # add git short SHA as Docker tag
           tag-sha: true
 

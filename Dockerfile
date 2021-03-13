@@ -1,15 +1,9 @@
-FROM golang:1.12-alpine as builder
-
-ENV GO111MODULE=on
+FROM golang:1.16-alpine as builder
 
 WORKDIR /app
 COPY . .
 
 RUN apk --no-cache add git alpine-sdk build-base gcc
-
-RUN go get
-RUN go get golang.org/x/tools/cmd/cover
-RUN go get github.com/mattn/goveralls
 
 RUN go build cmd/simplesqsd/simplesqsd.go
 

@@ -10,11 +10,6 @@ A simple version of the AWS Elastic Beanstalk Worker Environment SQS daemon ([sq
 $ SQSD_QUEUE_REGION=us-east-1 SQSD_QUEUE_URL=http://queue.url SQSD_HTTP_URL=http://service.url/endpoint go run cmd/simplesqsd/simplesqsd.go
 ```
 
-Docker (uses a Docker Hub repository):
-```bash
-$ docker run -e AWS_ACCESS_KEY_ID=your-access-id AWS_SECRET_ACCESS_KEY=your-secret-key SQSD_QUEUE_REGION=us-east-1 -e SQSD_QUEUE_URL=http://queue.url -e SQSD_HTTP_URL=http://service.url/endpoint fterrag/simple-sqsd:latest
-```
-
 ## Configuration
 
 |**Environment Variable**|**Default Value**|**Required**|**Description**|

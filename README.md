@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/fterrag/simple-sqsd.svg?branch=master)](https://travis-ci.org/fterrag/simple-sqsd) [![Go Report Card](https://goreportcard.com/badge/github.com/fterrag/simple-sqsd)](https://goreportcard.com/report/github.com/fterrag/simple-sqsd)
+[![Go Report Card](https://goreportcard.com/badge/github.com/fterrag/simple-sqsd)](https://goreportcard.com/report/github.com/fterrag/simple-sqsd)
 
 # simple-sqsd
 

@@ -41,6 +41,8 @@ type WorkerConfig struct {
 	HTTPURL         string
 	HTTPContentType string
 
+    HTTPAUTHORIZATIONHeader string
+
 	HTTPHMACHeader string
 	HMACSecretKey  []byte
 }
@@ -189,6 +191,10 @@ func (s *Supervisor) httpRequest(msg *sqs.Message) (*http.Response, error) {
 		}
 
 		req.Header.Set(s.workerConfig.HTTPHMACHeader, hmac)
+	}
+
+	if len(s.workerConfig.HTTPAUTHORIZATIONHeader) > 0 {
+		req.Header.Set("Authorization", s.workerConfig.HTTPAUTHORIZATIONHeader)
 	}
 
 	if len(s.workerConfig.HTTPContentType) > 0 {

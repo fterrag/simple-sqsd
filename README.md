@@ -37,6 +37,7 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id -e AWS_SECRET_ACCESS_KEY=your-s
 |`SQSD_SQS_HTTP_TIMEOUT`|`15`|no|Number of seconds to wait for a response from sqs|
 |`SQSD_HTTP_SSL_VERIFY`|`true`|no|Enable SSL Verification on the URL of your service to make a request to (if you're using self-signed certificate)|
 |`SQSD_HTTP_AUTHORIZATION_HEADER`||no|A simple feature to add a jwt/simple token to Authorization header for basic auth on SQSD_HTTP_URL |
+|`SQSD_HTTP_AUTHORIZATION_HEADER_NAME`||no|override the http header name (defaults to Authorization) in SQSD_HTTP_AUTHORIZATION_HEADER |
 ## HMAC
 
 *Optionally* (when SQSD_HTTP_HMAC_HEADER and SQSD_HMAC_SECRET_KEY are set), HMAC hashes are generated using SHA-256 with the signature made up of the following:

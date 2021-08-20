@@ -30,6 +30,7 @@ type config struct {
 	AWSEndpoint    string
 	HTTPHMACHeader string
 	HTTPAUTHORIZATIONHeader string
+	HTTPAUTHORIZATIONHeaderName string
 	HMACSecretKey  []byte
 
 	HTTPHealthPath        string
@@ -63,6 +64,7 @@ func main() {
 	c.AWSEndpoint = os.Getenv("SQSD_AWS_ENDPOINT")
 	c.HTTPHMACHeader = os.Getenv("SQSD_HTTP_HMAC_HEADER")
 	c.HTTPAUTHORIZATIONHeader = os.Getenv("SQSD_HTTP_AUTHORIZATION_HEADER")
+	c.HTTPAUTHORIZATIONHeaderName = os.Getenv("SQSD_HTTP_AUTHORIZATION_HEADER_NAME")
 	c.HMACSecretKey = []byte(os.Getenv("SQSD_HMAC_SECRET_KEY"))
 
 	c.SQSHTTPTimeout = getEnvInt("SQSD_SQS_HTTP_TIMEOUT", 15)
@@ -150,6 +152,7 @@ func main() {
 		HTTPContentType: c.HTTPContentType,
 
 		HTTPAUTHORIZATIONHeader: c.HTTPAUTHORIZATIONHeader,
+		HTTPAUTHORIZATIONHeaderName: c.HTTPAUTHORIZATIONHeaderName,
 		
 		HTTPHMACHeader: c.HTTPHMACHeader,
 		HMACSecretKey:  c.HMACSecretKey,

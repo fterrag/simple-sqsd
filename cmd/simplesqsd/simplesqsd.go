@@ -4,7 +4,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/fterrag/simple-sqsd/cron_worker"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -27,11 +29,11 @@ type config struct {
 	HTTPContentType string
 	HTTPTimeout     int
 
-	AWSEndpoint    string
-	HTTPHMACHeader string
-	HTTPAUTHORIZATIONHeader string
+	AWSEndpoint                 string
+	HTTPHMACHeader              string
+	HTTPAUTHORIZATIONHeader     string
 	HTTPAUTHORIZATIONHeaderName string
-	HMACSecretKey  []byte
+	HMACSecretKey               []byte
 
 	HTTPHealthPath        string
 	HTTPHealthWait        int
@@ -40,6 +42,10 @@ type config struct {
 
 	SQSHTTPTimeout int
 	SSLVerify      bool
+
+	CronFile          string
+	CronEndPoint      string
+	CronWarnThreshold int
 }
 
 func main() {
@@ -69,6 +75,10 @@ func main() {
 
 	c.SQSHTTPTimeout = getEnvInt("SQSD_SQS_HTTP_TIMEOUT", 15)
 	c.SSLVerify = getenvBool("SQSD_HTTP_SSL_VERIFY", true)
+
+	c.CronFile = os.Getenv("SQSD_CRON_FILE")
+	c.CronEndPoint = os.Getenv("SQSD_CRON_ENDPOINT")
+	c.CronWarnThreshold = getEnvInt("SQSD_CRON_WARN_AFTER", 120)
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -151,9 +161,9 @@ func main() {
 		HTTPURL:         c.HTTPURL,
 		HTTPContentType: c.HTTPContentType,
 
-		HTTPAUTHORIZATIONHeader: c.HTTPAUTHORIZATIONHeader,
+		HTTPAUTHORIZATIONHeader:     c.HTTPAUTHORIZATIONHeader,
 		HTTPAUTHORIZATIONHeaderName: c.HTTPAUTHORIZATIONHeaderName,
-		
+
 		HTTPHMACHeader: c.HTTPHMACHeader,
 		HMACSecretKey:  c.HMACSecretKey,
 	}
@@ -170,9 +180,31 @@ func main() {
 		Timeout: time.Duration(c.HTTPTimeout) * time.Second,
 	}
 
+	if "" == c.CronEndPoint {
+		parts, err := url.Parse(c.HTTPURL)
+		if nil == err {
+			parts.RawQuery = ""
+			parts.Path = ""
+			parts.Fragment = ""
+			c.CronEndPoint = parts.String()
+		}
+	}
+	if "" != c.CronFile && "" == c.CronEndPoint {
+		log.Fatal("You need to specify SQSD_CRON_URL")
+	}
+	cronDaemon := cron_worker.New(&cron_worker.Config{
+		File:          c.CronFile,
+		EndPoint:      c.CronEndPoint,
+		WarnThreshold: time.Duration(c.CronWarnThreshold) * time.Second,
+	})
+	if nil != cronDaemon {
+		go cronDaemon.Run()
+	}
+
 	s := supervisor.NewSupervisor(logger, sqsSvc, httpClient, wConf)
 	s.Start(c.HTTPMaxConns)
 	s.Wait()
+	cronDaemon.Stop()
 }
 
 func getEnvInt(key string, def int) int {

@@ -2,26 +2,32 @@ package cron_worker
 
 import (
 	"errors"
+	"github.com/fsnotify/fsnotify"
 	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
 type (
 	Config struct {
-		File          string
-		EndPoint      string
-		WarnThreshold time.Duration
+		File     string
+		EndPoint string
+		Timeout  time.Duration
 	}
 	Worker struct {
 		config  *Config
 		crontab *sqsCron
 
 		cron *cron.Cron
+
+		fsDoneChan chan bool
+
+		mu sync.Mutex
 	}
 	sqsCronItem struct {
 		Name        string `yaml:"name"`
@@ -41,38 +47,94 @@ func New(c *Config) *Worker {
 		return nil
 	}
 
+	if c.Timeout.Seconds() < 1 {
+		c.Timeout = 30 * time.Second
+	}
+
 	wkr := Worker{
 		config:  c,
 		crontab: nil,
 	}
+	wkr.fsDoneChan = make(chan bool, 10)
 	wkr.loadCronTab()
 
 	return &wkr
 }
 
+// Run handles the running of the cron tab and the watching of the cron yaml file and reloading when required
 func (w *Worker) Run() {
 	if nil == w.cron {
 		log.Errorf("Cannot run cron")
 		return
 	}
 	w.cron.Start()
+
 	for _, entry := range w.crontab.Cron {
 		log.
 			WithField("what", "cron").
-			WithField("name", entry.Name).
 			WithField("next", w.cron.Entry(entry.cronEntryId).Next).
+			WithField("name", entry.Name).
 			Debug("Next Occurrence")
 	}
 
-	// TODO: wait on w.config.File changes and reload the crontab
+	watcher, err := fsnotify.NewWatcher()
+	if nil != err {
+		log.WithError(err).WithField("file", w.config.File).Error("Unable to watch cron file for changes")
+		return
+	}
+	err = watcher.Add(w.config.File)
+	if nil != err {
+		log.WithError(err).WithField("file", w.config.File).Error("Unable to watch cron file for changes")
+		return
+	}
+
+	go func() {
+		defer func() {
+			if err = watcher.Close(); nil != err {
+				log.WithError(err).Error("error closing fs watcher")
+			}
+		}()
+		for {
+			select {
+			case <-w.fsDoneChan:
+				return
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					log.WithField("file", w.config.File).Info("cron file changed. reloading")
+					w.loadCronTab()
+					w.Run()
+					return
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.WithError(err).Error("FSNotify Error")
+			}
+		}
+	}()
 }
 
+// Stop handles shutting down the cron worker safely
 func (w *Worker) Stop() {
-	w.cron.Stop()
+	w.fsDoneChan <- true
+	if nil != w.cron {
+		w.cron.Stop()
+	}
 }
 
 // loadCronTab is the parent method that reads, parses and then loads the crontab
 func (w *Worker) loadCronTab() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if nil != w.cron {
+		w.cron.Stop()
+		w.cron = nil
+	}
+
 	contents, err := w.readCronTab(w.config.File)
 	if nil != err {
 		log.WithError(err).Error("Failed to load crontab")
@@ -126,7 +188,6 @@ func (w *Worker) loadCronEntries() error {
 	w.cron = cron.New()
 
 	for idx, entry := range w.crontab.Cron {
-		log.WithField("entry", entry.Name).Debug("Adding Cron Entry")
 		entryId, err := w.cron.AddFunc(entry.Schedule, w.makeCronRequestFunc(entry))
 		if err != nil {
 			log.
@@ -154,27 +215,24 @@ func (w *Worker) makeCronRequestFunc(entry sqsCronItem) func() {
 
 		rqLog.Debug("Requesting Cron URL")
 
-		resp, err := http.Post(cronUrl, "application/json", nil)
+		client := &http.Client{}
+		client.Timeout = w.config.Timeout
+
+		resp, err := client.Post(cronUrl, "application/json", nil)
+		t2 := time.Now()
+		dur := t2.Sub(t1)
+		rqLog = rqLog.WithField("duration", dur.String())
 		if err != nil {
 			rqLog.
 				WithError(err).
 				Error("Failed Requesting Endpoint")
 			return
 		}
-		rqLog.WithField("http-status", resp.StatusCode)
+		rqLog = rqLog.WithField("http-status", resp.StatusCode)
 
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			rqLog.
 				Error("Requesting cron endpoint resulted in non 2XX Status Code")
-		}
-		t2 := time.Now()
-
-		dur := t2.Sub(t1)
-
-		rqLog.WithField("duration", dur.String())
-
-		if w.config.WarnThreshold > 0 && dur > w.config.WarnThreshold {
-			rqLog.Warn("Cron Job Time Taken Exceeded Threshold")
 		} else {
 			rqLog.Info("Cron Success")
 		}

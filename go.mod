@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/aws/aws-sdk-go v1.36.18
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/onsi/ginkgo v1.15.1 // indirect
 	github.com/onsi/gomega v1.11.0 // indirect
 	github.com/robfig/cron/v3 v3.0.0 // indirect

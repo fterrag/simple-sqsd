@@ -43,9 +43,9 @@ type config struct {
 	SQSHTTPTimeout int
 	SSLVerify      bool
 
-	CronFile          string
-	CronEndPoint      string
-	CronWarnThreshold int
+	CronFile     string
+	CronEndPoint string
+	CronTimeout  int
 }
 
 func main() {
@@ -78,7 +78,7 @@ func main() {
 
 	c.CronFile = os.Getenv("SQSD_CRON_FILE")
 	c.CronEndPoint = os.Getenv("SQSD_CRON_ENDPOINT")
-	c.CronWarnThreshold = getEnvInt("SQSD_CRON_WARN_AFTER", 120)
+	c.CronTimeout = getEnvInt("SQSD_CRON_TIMEOUT", 15)
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -193,9 +193,9 @@ func main() {
 		log.Fatal("You need to specify SQSD_CRON_URL")
 	}
 	cronDaemon := cron_worker.New(&cron_worker.Config{
-		File:          c.CronFile,
-		EndPoint:      c.CronEndPoint,
-		WarnThreshold: time.Duration(c.CronWarnThreshold) * time.Second,
+		File:     c.CronFile,
+		EndPoint: c.CronEndPoint,
+		Timeout:  time.Duration(c.CronTimeout) * time.Second,
 	})
 	if nil != cronDaemon {
 		go cronDaemon.Run()

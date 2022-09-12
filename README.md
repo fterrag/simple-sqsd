@@ -38,6 +38,10 @@ $ docker run -e AWS_ACCESS_KEY_ID=your-access-id -e AWS_SECRET_ACCESS_KEY=your-s
 |`SQSD_HTTP_SSL_VERIFY`|`true`|no|Enable SSL Verification on the URL of your service to make a request to (if you're using self-signed certificate)|
 |`SQSD_HTTP_AUTHORIZATION_HEADER`||no|A simple feature to add a jwt/simple token to Authorization header for basic auth on SQSD_HTTP_URL |
 |`SQSD_HTTP_AUTHORIZATION_HEADER_NAME`||no|override the http header name (defaults to Authorization) in SQSD_HTTP_AUTHORIZATION_HEADER |
+|`SQSD_CRON_FILE`||no|The elastic beanstalk cron.yaml file to load|
+|`SQSD_CRON_ENDPOINT`|`SQSD_HTTP_URL` without path/query|yes if SQSD_CRON_FILE|The base URL to call (e.g. http://localhost:3000). cron.yaml url will be appended to this|
+|`SQSD_CRON_TIMEOUT`|`15`|no|Duration (in seconds) To wait for the cron endpoint to response|
+
 ## HMAC
 
 *Optionally* (when SQSD_HTTP_HMAC_HEADER and SQSD_HMAC_SECRET_KEY are set), HMAC hashes are generated using SHA-256 with the signature made up of the following:

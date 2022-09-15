@@ -46,6 +46,8 @@ type WorkerConfig struct {
 
 	HTTPHMACHeader string
 	HMACSecretKey  []byte
+
+	UserAgent string
 }
 
 type httpClient interface {
@@ -204,6 +206,10 @@ func (s *Supervisor) httpRequest(msg *sqs.Message) (*http.Response, error) {
 
 	if len(s.workerConfig.HTTPContentType) > 0 {
 		req.Header.Set("Content-Type", s.workerConfig.HTTPContentType)
+	}
+
+	if len(s.workerConfig.UserAgent) > 0 {
+		req.Header.Set("User-Agent", s.workerConfig.UserAgent)
 	}
 
 	res, err := s.httpClient.Do(req)

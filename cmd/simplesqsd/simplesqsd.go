@@ -46,6 +46,8 @@ type config struct {
 	CronFile     string
 	CronEndPoint string
 	CronTimeout  int
+
+	UserAgent string
 }
 
 func main() {
@@ -60,6 +62,7 @@ func main() {
 	c.HTTPMaxConns = getEnvInt("SQSD_HTTP_MAX_CONNS", 25)
 	c.HTTPURL = os.Getenv("SQSD_HTTP_URL")
 	c.HTTPContentType = os.Getenv("SQSD_HTTP_CONTENT_TYPE")
+	c.UserAgent = os.Getenv("SQSD_HTTP_USER_AGENT")
 
 	c.HTTPHealthPath = os.Getenv("SQSD_HTTP_HEALTH_PATH")
 	c.HTTPHealthWait = getEnvInt("SQSD_HTTP_HEALTH_WAIT", 5)
@@ -79,6 +82,7 @@ func main() {
 	c.CronFile = os.Getenv("SQSD_CRON_FILE")
 	c.CronEndPoint = os.Getenv("SQSD_CRON_ENDPOINT")
 	c.CronTimeout = getEnvInt("SQSD_CRON_TIMEOUT", 15)
+
 
 	if len(c.QueueRegion) == 0 {
 		log.Fatal("SQSD_QUEUE_REGION cannot be empty")
@@ -166,6 +170,8 @@ func main() {
 
 		HTTPHMACHeader: c.HTTPHMACHeader,
 		HMACSecretKey:  c.HMACSecretKey,
+
+		UserAgent: c.UserAgent,
 	}
 
 	httpClient := &http.Client{

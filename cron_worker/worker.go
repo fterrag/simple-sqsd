@@ -15,9 +15,13 @@ import (
 
 type (
 	Config struct {
-		File     string
-		EndPoint string
-		Timeout  time.Duration
+		File                        string
+		EndPoint                    string
+		Timeout                     time.Duration
+		UserAgent                   string
+		HTTPAUTHORIZATIONHeader     string
+		HTTPAUTHORIZATIONHeaderName string
+		HTTPContentType             string
 	}
 	Worker struct {
 		config  *Config
@@ -218,7 +222,28 @@ func (w *Worker) makeCronRequestFunc(entry sqsCronItem) func() {
 		client := &http.Client{}
 		client.Timeout = w.config.Timeout
 
-		resp, err := client.Post(cronUrl, "application/json", nil)
+		//resp, err := client.Post(cronUrl, "application/json", nil)
+		req, err := http.NewRequest("POST", cronUrl, nil)
+		req.Header.Add("X-Aws-Sqsd-Taskname", *entry.Name)
+
+		if len(w.config.HTTPAUTHORIZATIONHeader) > 0 {
+			headerName := w.config.HTTPAUTHORIZATIONHeaderName
+			if len(headerName) == 0 {
+				headerName = "Authorization"
+			}
+			req.Header.Set(headerName, w.config.HTTPAUTHORIZATIONHeader)
+		}
+	
+		if len(w.config.HTTPContentType) > 0 {
+			req.Header.Set("Content-Type", w.config.HTTPContentType)
+		}
+
+		if len(w.config.UserAgent) > 0 {
+			req.Header.Set("User-Agent", w.config.UserAgent)
+		}
+
+		res, err := client.Do(req)
+	
 		t2 := time.Now()
 		dur := t2.Sub(t1)
 		rqLog = rqLog.WithField("duration", dur.String())
@@ -226,15 +251,18 @@ func (w *Worker) makeCronRequestFunc(entry sqsCronItem) func() {
 			rqLog.
 				WithError(err).
 				Error("Failed Requesting Endpoint")
-			return
+				return
 		}
-		rqLog = rqLog.WithField("http-status", resp.StatusCode)
+		rqLog = rqLog.WithField("http-status", res.StatusCode)
 
-		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		if res.StatusCode < 200 || res.StatusCode > 299 {
 			rqLog.
 				Error("Requesting cron endpoint resulted in non 2XX Status Code")
 		} else {
 			rqLog.Info("Cron Success")
 		}
+
+		res.Body.Close()
+
 	}
 }

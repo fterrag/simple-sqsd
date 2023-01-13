@@ -224,7 +224,7 @@ func (w *Worker) makeCronRequestFunc(entry sqsCronItem) func() {
 
 		//resp, err := client.Post(cronUrl, "application/json", nil)
 		req, err := http.NewRequest("POST", cronUrl, nil)
-		req.Header.Add("X-Aws-Sqsd-Taskname", *entry.Name)
+		req.Header.Add("X-Aws-Sqsd-Taskname", entry.Name)
 
 		if len(w.config.HTTPAUTHORIZATIONHeader) > 0 {
 			headerName := w.config.HTTPAUTHORIZATIONHeaderName

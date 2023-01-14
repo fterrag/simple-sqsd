@@ -199,9 +199,13 @@ func main() {
 		log.Fatal("You need to specify SQSD_CRON_URL")
 	}
 	cronDaemon := cron_worker.New(&cron_worker.Config{
-		File:     c.CronFile,
-		EndPoint: c.CronEndPoint,
-		Timeout:  time.Duration(c.CronTimeout) * time.Second,
+		File:                        c.CronFile,
+		EndPoint:                    c.CronEndPoint,
+		Timeout:                     time.Duration(c.CronTimeout) * time.Second,
+		UserAgent:                   c.UserAgent,
+		HTTPContentType:             c.HTTPContentType,
+		HTTPAUTHORIZATIONHeader:     c.HTTPAUTHORIZATIONHeader,
+		HTTPAUTHORIZATIONHeaderName: c.HTTPAUTHORIZATIONHeaderName,
 	})
 	if nil != cronDaemon {
 		go cronDaemon.Run()

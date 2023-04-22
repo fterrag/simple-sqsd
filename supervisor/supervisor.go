@@ -5,17 +5,23 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	ECSAgentURI = "http://localhost:51678" // Replace with the actual ECS agent URI
 )
 
 type Supervisor struct {
@@ -37,11 +43,12 @@ type WorkerConfig struct {
 	QueueURL         string
 	QueueMaxMessages int
 	QueueWaitTime    int
+	VisibilityTimeout int64
 
 	HTTPURL         string
 	HTTPContentType string
 
-    HTTPAUTHORIZATIONHeader string
+		HTTPAUTHORIZATIONHeader string
 	HTTPAUTHORIZATIONHeaderName string
 
 	HTTPHMACHeader string
@@ -52,6 +59,10 @@ type WorkerConfig struct {
 
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
+}
+
+type ScaleInProtectionState struct {
+	ProtectionEnabled bool `json:"protectionEnabled"`
 }
 
 func NewSupervisor(logger *log.Entry, sqs sqsiface.SQSAPI, httpClient httpClient, config WorkerConfig) *Supervisor {
@@ -85,6 +96,32 @@ func (s *Supervisor) Shutdown() {
 	s.shutdown = true
 }
 
+func (s *Supervisor) setScaleInProtection(enabled bool) error {
+	state := ScaleInProtectionState{ProtectionEnabled: enabled}
+	stateJSON, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", ECSAgentURI+"/task-protection/v1/state", bytes.NewBuffer(stateJSON))
+	if err != nil {
+		return err
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to set scale-in protection, status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 func (s *Supervisor) worker() {
 	defer s.wg.Done()
 
@@ -109,6 +146,12 @@ func (s *Supervisor) worker() {
 		}
 
 		if len(output.Messages) == 0 {
+			continue
+		}
+
+		// Enable scale-in protection after receiving messages.
+		if err := s.setScaleInProtection(true); err != nil {
+			s.logger.Errorf("Error enabling scale-in protection: %s", err)
 			continue
 		}
 
@@ -161,6 +204,11 @@ func (s *Supervisor) worker() {
 			_, err = s.sqs.DeleteMessageBatch(delInput)
 			if err != nil {
 				s.logger.Errorf("Error while deleting messages from SQS: %s", err)
+			} else {
+				// Disable scale-in protection after deleting messages.
+				if err := s.setScaleInProtection(false); err != nil {
+					s.logger.Errorf("Error disabling scale-in protection: %s", err)
+				}
 			}
 		}
 
@@ -184,7 +232,7 @@ func (s *Supervisor) httpRequest(msg *sqs.Message) (*http.Response, error) {
 	req.Header.Add("X-Aws-Sqsd-Msgid", *msg.MessageId)
 	s.addMessageAttributesToHeader(msg.MessageAttributes, req.Header)
 	if err != nil {
-		return nil, fmt.Errorf("Error while creating HTTP request: %s", err)
+		return nil, fmt.Errorf("error while creating HTTP request: %s", err)
 	}
 
 	if len(s.workerConfig.HMACSecretKey) > 0 {
@@ -212,7 +260,38 @@ func (s *Supervisor) httpRequest(msg *sqs.Message) (*http.Response, error) {
 		req.Header.Set("User-Agent", s.workerConfig.UserAgent)
 	}
 
+	// Create a channel to signal when to stop extending the visibility timeout.
+	stopHeartbeat := make(chan struct{})
+
+	// Start a goroutine to periodically extend the visibility timeout.
+	go func() {
+		ticker := time.NewTicker(time.Duration(s.workerConfig.VisibilityTimeout/2) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				_, err := s.sqs.ChangeMessageVisibility(&sqs.ChangeMessageVisibilityInput{
+					QueueUrl:          aws.String(s.workerConfig.QueueURL),
+					ReceiptHandle:     msg.ReceiptHandle,
+					VisibilityTimeout: aws.Int64(s.workerConfig.VisibilityTimeout),
+				})
+				if err != nil {
+					// Log the error but continue the heartbeat.
+					s.logger.Errorf("Error while extending message visibility timeout: %s\n", err)
+				}
+			case <-stopHeartbeat:
+				// Stop extending the visibility timeout.
+				return
+			}
+		}
+	}()
+
 	res, err := s.httpClient.Do(req)
+
+	// Signal the heartbeat goroutine to stop.
+	close(stopHeartbeat)
+
 	if err != nil {
 		return res, err
 	}
@@ -233,7 +312,7 @@ func makeHMAC(signature string, secretKey []byte) (string, error) {
 
 	_, err := mac.Write([]byte(signature))
 	if err != nil {
-		return "", fmt.Errorf("Error while writing HMAC: %s", err)
+		return "", fmt.Errorf("error while writing HMAC: %s", err)
 	}
 
 	return hex.EncodeToString(mac.Sum(nil)), nil
